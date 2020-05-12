@@ -1,26 +1,182 @@
 import React from 'react';
-import logo from './logo.svg';
 import './App.css';
 
-function App() {
-  return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
-  );
+class App extends React.Component{
+
+  constructor(props){
+    super(props);
+    this.state={
+      todoList:[],
+      activeItem:{
+        id:null,
+        title:'',
+        completed:false
+      },
+      edititng:false
+    }
+    this.fetchTasks=this.fetchTasks.bind(this)
+    this.handleChange=this.handleChange.bind(this)
+    this.handleSubmit=this.handleSubmit.bind(this)
+    this.getCookie=this.getCookie.bind(this)
+    this.startedit=this.startedit.bind(this)
+    this.deleteItem=this.deleteItem.bind(this)
+    this.completedTask=this.completedTask.bind(this)
+  }
+
+  getCookie(name) {
+    var cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        var cookies = document.cookie.split(';');
+        for (var i = 0; i < cookies.length; i++) {
+            var cookie = cookies[i].trim();
+            // Does this cookie string begin with the name we want?
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+  componentWillMount(){
+    this.fetchTasks()
+  }
+
+  fetchTasks(){
+    fetch('http://127.0.0.1:8000/api/task-list/')
+    .then(response=>response.json())
+    .then(data=>
+      this.setState({
+        todoList:data
+      })
+      )
+  }
+
+  handleChange(event){
+    var value=event.target.value
+    this.setState({
+      activeItem:{
+        ...this.state.activeItem,
+        title:value
+      }
+    })
+  }
+
+handleSubmit(event){
+  event.preventDefault()
+  var csrftoken = this.getCookie('csrftoken');
+  var url='http://127.0.0.1:8000/api/task-create/'
+  if(this.state.edititng===true){
+    url=`http://127.0.0.1:8000/api/task-update/${this.state.activeItem.id}`
+    this.setState({
+      edititng:false
+    })
+  }
+  fetch(url, {
+    method:'POST',
+    headers:{
+      'Content-type':'application/json',
+      'X-CSRFToken':csrftoken
+    },
+    body:JSON.stringify(this.state.activeItem)
+  }).then(response=>{
+    this.fetchTasks()
+    this.setState({
+      activeItem:{
+        id:null,
+        title:'',
+        completed:false
+      }
+    })
+  }).catch(function(error){
+    console.log('error ',error)
+  })
+}
+
+startedit(task){
+  this.setState({
+    activeItem:task,
+    edititng:true
+  })
+}
+
+deleteItem(task){
+  var csrftoken = this.getCookie('csrftoken');
+  var url=`http://127.0.0.1:8000/api/task-delete/${task.id}`
+  fetch(url,{
+    method:'DELETE',
+    headers:{
+      'Content-type':'application/json',
+      'X-CSRFToken':csrftoken
+    },
+  }).then((response)=>{
+    this.fetchTasks()
+  })
+
+}
+
+completedTask(task){
+  task.completed=!task.completed
+  var csrftoken = this.getCookie('csrftoken');
+  var url=`http://127.0.0.1:8000/api/task-update/${task.id}`
+  fetch(url,{
+    method:'POST',
+    headers:{
+      'Content-type':'application/json',
+      'X-CSRFToken':csrftoken
+    },
+    body:JSON.stringify({'completed':task.completed,'title':task.title})
+  }).then(()=>{
+    this.fetchTasks()
+  })
+ 
+}
+
+  render(){
+    var tasks=this.state.todoList
+    var self=this
+    return(
+      <div className='container'>
+        <div id='task-container'>
+          <div id='form-wrapper'>
+            <form id='form' onSubmit={this.handleSubmit}>
+              <div className='flex-wrapper'>
+                <div style={{flex:6}}>
+                  <input onChange={this.handleChange} className='form-control' id='title' name='title' type='text' placeholder='input' value={this.state.activeItem.title}></input>
+                </div>
+                <div style={{flex:1}} >
+                  <input className='btn btn-warning' id='submit' name='submit' type='submit'></input>
+                </div>
+              </div>
+            </form>
+          </div>
+          <div id='list-wrapper'>
+            {tasks.map(function(task,key){
+              return(
+              <div key={key} className='flex-wrapper task-wrapper'>
+                <div onClick={()=>self.completedTask(task)} style={{flex:7}}>
+                  {task.completed===false?(
+                    <span>{task.title}</span>
+                  ):(
+                    <strike>{task.title}</strike>
+                  )}
+                  
+                </div>
+                <div style={{flex:1}}>
+                  <button onClick={()=>self.startedit(task)} className='btn btn-outline-info btn-sm edit'>Edit</button>
+                </div>
+                <div style={{flex:1}}>
+                  <button onClick={()=>self.deleteItem(task)} className='btn btn-outline-dark btn-sm delete'>Delete</button>
+                </div>
+              </div>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+    )
+  }
 }
 
 export default App;
